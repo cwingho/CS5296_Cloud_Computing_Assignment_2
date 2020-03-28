@@ -34,7 +34,7 @@ public class Bow {
 	private static BufferedWriter bw;
 	private static LinkedHashMap<String,String> hm = new LinkedHashMap<String,String>();  
 	
-	public static class Map extends Mapper<Object, Text, Text, IntWritable>{
+	public static class TokenizerMapper extends Mapper<Object, Text, Text, IntWritable>{
 		private final static IntWritable one = new IntWritable(1);
 	    private Text word = new Text();
 	    
@@ -57,7 +57,7 @@ public class Bow {
 		}
 	}
 	
-	public static class Reduce extends Reducer<Text, IntWritable, Text, IntWritable>{
+	public static class IntSumReducer extends Reducer<Text, IntWritable, Text, IntWritable>{
 		private IntWritable result = new IntWritable();
 		
 		public void reduce(Text key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException{
@@ -103,10 +103,6 @@ public class Bow {
 			hm.put(word,"0"); 
 		}
 		
-//		for(Entry<String, Integer> m: hm.entrySet()){  
-//		   System.out.println(m.getKey()+" "+m.getValue());  
-//		} 
-		
 		Configuration conf = new Configuration();
 		FileSystem fs = FileSystem.get(conf);
 		FileStatus[] status = fs.listStatus(new Path(args[0]));
@@ -132,9 +128,9 @@ public class Bow {
 			
 			Job job = Job.getInstance(conf, "bow");
 		    job.setJarByClass(Bow.class);
-			job.setMapperClass(Map.class);
-			job.setCombinerClass(Reduce.class);
-			job.setReducerClass(Reduce.class);
+			job.setMapperClass(TokenizerMapper.class);
+			job.setCombinerClass(IntSumReducer.class);
+			job.setReducerClass(IntSumReducer.class);
 			job.setOutputKeyClass(Text.class);
 			job.setOutputValueClass(IntWritable.class);
 

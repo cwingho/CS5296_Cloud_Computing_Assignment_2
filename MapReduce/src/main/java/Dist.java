@@ -4,9 +4,13 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.StringTokenizer;
+import java.util.stream.Collectors;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
@@ -24,9 +28,9 @@ public class Dist {
 	
 	private static BufferedReader br;
 	private static BufferedWriter bw;
-	private static LinkedHashMap<String,String> hm = new LinkedHashMap<String,String>();  
+	private static Map<String,Integer> hm = new LinkedHashMap<String,Integer>();  
 	
-	public static class Map extends Mapper<Object, Text, Text, IntWritable>{
+	public static class TokenizerMapper extends Mapper<Object, Text, Text, IntWritable>{
 		private final static IntWritable one = new IntWritable(1);
 	    private Text word = new Text();
 	    
@@ -39,6 +43,10 @@ public class Dist {
 			StringTokenizer itr = new StringTokenizer(clean_str);
 			while (itr.hasMoreTokens()) {
 				String token = itr.nextToken();
+
+				if(token.length() < 2) {
+					continue;
+				}
 				
 				if(token.substring(0, 2).equals("ex")) {
 					word.set(token);
@@ -48,7 +56,7 @@ public class Dist {
 		}
 	}
 	
-	public static class Reduce extends Reducer<Text, IntWritable, Text, IntWritable>{
+	public static class IntSumReducer extends Reducer<Text, IntWritable, Text, IntWritable>{
 		private IntWritable result = new IntWritable();
 		
 		public void reduce(Text key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException{
@@ -58,29 +66,72 @@ public class Dist {
 			}
 			result.set(sum);
 			context.write(key, result);
+			String word = key.toString();
+			
+			// add word count to hashmap
+			if(hm.containsKey(word)){
+				hm.put(word,hm.get(word)+sum);
+			}else {
+				hm.put(word,sum);
+			}	
 		}
 	}
 	
-	private static String getBow(String file_name, String file_path) {
+    private static Map<String, Integer> sortByValue(Map<String, Integer> unsortMap)
+    {
+        List<Entry<String, Integer>> list = new LinkedList<>(unsortMap.entrySet());
+
+        // Sorting the list based on values
+        list.sort((o1, o2) -> o2.getValue().compareTo(o1.getValue()) == 0
+                ? o1.getKey().compareTo(o2.getKey())
+                : o2.getValue().compareTo(o1.getValue()));
+        return list.stream().collect(Collectors.toMap(Entry::getKey, Entry::getValue, (a, b) -> b, LinkedHashMap::new));
+
+    }
+	
+	private static String getWordCnt(String file_name, String file_path) {
 		try {
+			Map<String,Integer> _hm = new LinkedHashMap<String,Integer>();
 			br = new BufferedReader(new FileReader(file_path+"/part-r-00000"));
 	        String line = null;
 	        
 	        while ((line = br.readLine()) != null) {
 	        	String[] pair = line.split("	");
-	        	hm.put(pair[0], pair[1]);
+	        	_hm.put(pair[0], Integer.parseInt(pair[1]));
 	        }
 	        
-	        ArrayList<String> values = new ArrayList<String>(hm.values());
-	        String output = String.join(", ", values);
-	        output = file_name+'	'+output;
+	        _hm = sortByValue(_hm);
+
+	        // output result
+	        ArrayList<String> pairs = new ArrayList<String>();
+			for(Entry<String, Integer> m: _hm.entrySet()){  
+				pairs.add(m.getKey()+", "+String.valueOf(m.getValue()));  
+			} 
+	        
+	        String output = String.join(", ", pairs);
+	        output = file_name+" "+output;
 	        
 	        return output;
 	        	        
-		} catch (IOException e) {
-	        System.err.println("Caught exception while loading result.");
+		} catch (Exception e) {
+	        System.err.println(e);
 		}
 		return "";
+	}
+	
+	private static String getTotalWordCnt() {
+		hm = sortByValue(hm);
+		
+		// output result
+        ArrayList<String> pairs = new ArrayList<String>();
+		for(Entry<String, Integer> m: hm.entrySet()){  
+			pairs.add(m.getKey()+", "+String.valueOf(m.getValue()));  
+		} 
+        
+        String output = String.join(", ", pairs);
+        output = "Total "+output;
+        
+        return output;
 	}
 	
 	public static void main(String[] args) throws IOException, ClassNotFoundException, InterruptedException{
@@ -114,9 +165,8 @@ public class Dist {
 			
 			Job job = Job.getInstance(conf, "bow");
 		    job.setJarByClass(Bow.class);
-			job.setMapperClass(Map.class);
-			job.setCombinerClass(Reduce.class);
-			job.setReducerClass(Reduce.class);
+			job.setMapperClass(TokenizerMapper.class);
+			job.setReducerClass(IntSumReducer.class);
 			job.setOutputKeyClass(Text.class);
 			job.setOutputValueClass(IntWritable.class);
 
@@ -125,8 +175,8 @@ public class Dist {
 			
 			job.waitForCompletion(true);
 			
-			// get bag of words
-			bow[idx] = getBow(file_name, output_file);
+			// get word count of each input file
+			bow[idx] = getWordCnt(file_name, output_file);
 			
 			System.out.println("Finished: "+file_name);
         }
@@ -135,7 +185,7 @@ public class Dist {
 		for(String line: bow) {
 			bw.write(line+'\n');
 		}
-		
+		bw.write(getTotalWordCnt());
 		br.close();
 		bw.close();
 	}

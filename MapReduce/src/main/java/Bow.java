@@ -144,7 +144,7 @@ public class Bow {
 			
 			System.out.println("Finished: "+file_name);
         }
-		
+
 		bw = new BufferedWriter(new FileWriter(output_dir+"output.txt"));
 		for(String line: bow) {
 			bw.write(line+'\n');

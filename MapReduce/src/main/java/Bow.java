@@ -1,5 +1,6 @@
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -31,6 +32,7 @@ public class Bow {
 			"also", "back", "after", "use", "two", "how", "our", "work", "first", "well", "way", "even", "new", 
 			"want", "because", "any", "these", "give", "day", "most", "us" };
 	
+	private final static int N_TEST_FILE = 10;
 	private static BufferedReader br;
 	private static BufferedWriter bw;
 	private static LinkedHashMap<String,String> hm = new LinkedHashMap<String,String>();  
@@ -73,21 +75,17 @@ public class Bow {
 	
 	private static String getBow(FileSystem fs, String file_name, String file_path) {
 		try {
-			FileStatus[] status = fs.listStatus(new Path(file_path));
-			
-			// read all file
-			for (int i=0;i<status.length;i++){	
-				
-				br = new BufferedReader(new InputStreamReader(fs.open(status[i].getPath())));
-		        String line = null;
-		        
-		        while ((line = br.readLine()) != null) {
-		        	String[] pair = line.split("	");
-		        	hm.put(pair[0], pair[1]);
-		        }
-		        br.close();
-			}
+			br = new BufferedReader(new InputStreamReader(fs.open(new Path(file_path+"/part-r-00000"))));
+	        String line = null;
 	        
+	        // get words
+	        while ((line = br.readLine()) != null) {
+	        	String[] pair = line.split("	");
+	        	hm.put(pair[0], pair[1]);
+	        }
+	        br.close();
+	        
+	        // convert hashmap to string
 	        ArrayList<String> values = new ArrayList<String>(hm.values());
 	        String output = String.join(", ", values);
 	        output = file_name+'	'+output;
@@ -108,11 +106,18 @@ public class Bow {
 		
 		Configuration conf = new Configuration();
 		FileSystem fs = FileSystem.get(conf);
-		FileStatus[] status = fs.listStatus(new Path(args[0]));
-		String[] bow = new String[status.length];
+		
+		String[] bow = new String[N_TEST_FILE];
 		String file_name = "";
+		String input_dir= "";
 		String output_dir= "";
 		String output_file= "";
+		
+		if(!args[0].substring(args[0].length() - 1).equals("/")){
+			input_dir = args[0]+"/";
+		}else {
+			input_dir = args[0];
+		}
 		
 		if(!args[1].substring(args[1].length() - 1).equals("/")){
 			output_dir = args[1]+"/";
@@ -120,19 +125,15 @@ public class Bow {
 			output_dir = args[1];
 		}
 		
-		for (int i=0;i<status.length;i++){
+		for (int i=0;i<N_TEST_FILE;i++){
 			// init hashmap for every input file
 			for(String word: top100Word) {
 				hm.put(word,"0"); 
 			}
 			
-			// create file to store result of each input txt
-			file_name = status[i].getPath().getName();
-			file_name = file_name.substring(0, file_name.lastIndexOf('.'));
+			// create file to store result of each input text file
+			file_name = "file"+((i+1 != N_TEST_FILE)?"0":"")+String.valueOf(i+1);
 			output_file = output_dir+file_name;
-			
-			// get file index
-			int idx = Integer.parseInt(file_name.replaceAll("\\D+",""))-1;
 			
 			Job job = Job.getInstance(conf, "bow");
 		    job.setJarByClass(Bow.class);
@@ -140,15 +141,16 @@ public class Bow {
 			job.setCombinerClass(IntSumReducer.class);
 			job.setReducerClass(IntSumReducer.class);
 			job.setOutputKeyClass(Text.class);
+			job.setNumReduceTasks(1);
 			job.setOutputValueClass(IntWritable.class);
 
-			FileInputFormat.addInputPath(job, status[i].getPath());
+			FileInputFormat.addInputPath(job, new Path(input_dir+file_name+".txt"));
 			FileOutputFormat.setOutputPath(job, new Path(output_file));
 			
 			job.waitForCompletion(true);
 			
 			// get bag of words
-			bow[idx] = getBow(fs, file_name, output_file);
+			bow[i] = getBow(fs, file_name, output_file);
 			
 			System.out.println("Finished: "+file_name);
         }

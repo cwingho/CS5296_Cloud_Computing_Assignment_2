@@ -27,6 +27,7 @@ import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 
 public class Dist {
 	
+	private final static int N_TEST_FILE = 10;
 	private static BufferedReader br;
 	private static BufferedWriter bw;
 	private static Map<String,Integer> hm = new LinkedHashMap<String,Integer>();  
@@ -70,8 +71,9 @@ public class Dist {
 		}
 	}
 	
-    private static Map<String, Integer> sortByValue(Map<String, Integer> unsortMap)
-    {
+	// ref: https://stackoverflow.com/questions/8119366/sorting-hashmap-by-values
+    private static Map<String, Integer> sort(Map<String, Integer> unsortMap)
+    {	
         List<Entry<String, Integer>> list = new LinkedList<>(unsortMap.entrySet());
 
         // Sorting the list based on values
@@ -86,30 +88,25 @@ public class Dist {
 		try {
 			Map<String,Integer> _hm = new LinkedHashMap<String,Integer>();
 			
-			FileStatus[] status = fs.listStatus(new Path(file_path));
-			
-			// read all file
-			for (int i=0;i<status.length;i++){	
-				br = new BufferedReader(new InputStreamReader(fs.open(status[i].getPath())));
-		        String line = null;
-		        
-		        while ((line = br.readLine()) != null) {
-		        	String[] pair = line.split("	");
-		        	String word = pair[0];
-		        	Integer sum = Integer.parseInt(pair[1]);
-		        	_hm.put(word, sum);
-		        	
-		        	// add word count to hashmap
-					if(hm.containsKey(word)){
-						hm.put(word,hm.get(word)+sum);
-					}else {
-						hm.put(word,sum);
-					}
-		        }
-		        br.close();
-			}
+			br = new BufferedReader(new InputStreamReader(fs.open(new Path(file_path+"/part-r-00000"))));
+	        String line = null;
 	        
-	        _hm = sortByValue(_hm);
+	        while ((line = br.readLine()) != null) {
+	        	String[] pair = line.split("	");
+	        	String word = pair[0];
+	        	Integer sum = Integer.parseInt(pair[1]);
+	        	_hm.put(word, sum);
+	        	
+	        	// add word count to hashmap
+				if(hm.containsKey(word)){
+					hm.put(word,hm.get(word)+sum);
+				}else {
+					hm.put(word,sum);
+				}
+	        }
+	        br.close();
+	        
+	        _hm = sort(_hm);
 
 	        // output result
 	        ArrayList<String> pairs = new ArrayList<String>();
@@ -129,7 +126,7 @@ public class Dist {
 	}
 	
 	private static String getTotalWordCnt() {
-		hm = sortByValue(hm);
+		hm = sort(hm);
 		
 		// output result
         ArrayList<String> pairs = new ArrayList<String>();
@@ -151,11 +148,17 @@ public class Dist {
 		
 		Configuration conf = new Configuration();
 		FileSystem fs = FileSystem.get(conf);
-		FileStatus[] status = fs.listStatus(new Path(args[0]));
-		String[] bow = new String[status.length];
+		String[] bow = new String[N_TEST_FILE];
 		String file_name = "";
+		String input_dir= "";
 		String output_dir= "";
 		String output_file= "";
+		
+		if(!args[0].substring(args[0].length() - 1).equals("/")){
+			input_dir = args[0]+"/";
+		}else {
+			input_dir = args[0];
+		}
 		
 		if(!args[1].substring(args[1].length() - 1).equals("/")){
 			output_dir = args[1]+"/";
@@ -163,29 +166,26 @@ public class Dist {
 			output_dir = args[1];
 		}
 		
-		for (int i=0;i<status.length;i++){
+		for (int i=0;i<N_TEST_FILE;i++){
 			// create file to store result of each input txt
-			file_name = status[i].getPath().getName();
-			file_name = file_name.substring(0, file_name.lastIndexOf('.'));
+			file_name = "file"+((i+1 != N_TEST_FILE)?"0":"")+String.valueOf(i+1);
 			output_file = output_dir+file_name;
-			
-			// get file index
-			int idx = Integer.parseInt(file_name.replaceAll("\\D+",""))-1;
 			
 			Job job = Job.getInstance(conf, "bow");
 		    job.setJarByClass(Bow.class);
 			job.setMapperClass(TokenizerMapper.class);
 			job.setReducerClass(IntSumReducer.class);
+			job.setNumReduceTasks(1);
 			job.setOutputKeyClass(Text.class);
 			job.setOutputValueClass(IntWritable.class);
 
-			FileInputFormat.addInputPath(job, status[i].getPath());
+			FileInputFormat.addInputPath(job, new Path(input_dir+file_name+".txt"));
 			FileOutputFormat.setOutputPath(job, new Path(output_file));
 			
 			job.waitForCompletion(true);
 			
 			// get word count of each input file
-			bow[idx] = getWordCnt(fs, file_name, output_file);
+			bow[i] = getWordCnt(fs, file_name, output_file);
 			
 			System.out.println("Finished: "+file_name);
         }

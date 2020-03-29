@@ -70,15 +70,21 @@ public class Bow {
 		}
 	}
 	
-	private static String getBow(String file_name, String file_path) {
+	private static String getBow(FileSystem fs, String file_name, String file_path) {
 		try {
-			br = new BufferedReader(new FileReader(file_path+"/part-r-00000"));
-	        String line = null;
-	        
-	        while ((line = br.readLine()) != null) {
-	        	String[] pair = line.split("	");
-	        	hm.put(pair[0], pair[1]);
-	        }
+			FileStatus[] status = fs.listStatus(new Path(file_path));
+			
+			// read all file
+			for (int i=0;i<status.length;i++){	
+				br = new BufferedReader(new FileReader(file_path+"/"+status[i].getPath().getName()));
+		        String line = null;
+		        
+		        while ((line = br.readLine()) != null) {
+		        	String[] pair = line.split("	");
+		        	hm.put(pair[0], pair[1]);
+		        }
+		        br.close();
+			}
 	        
 	        ArrayList<String> values = new ArrayList<String>(hm.values());
 	        String output = String.join(", ", values);
@@ -98,11 +104,6 @@ public class Bow {
 			System.exit(0);
 		}
 		
-		// init hashmap
-		for(String word: top100Word) {
-			hm.put(word,"0"); 
-		}
-		
 		Configuration conf = new Configuration();
 		FileSystem fs = FileSystem.get(conf);
 		FileStatus[] status = fs.listStatus(new Path(args[0]));
@@ -118,6 +119,11 @@ public class Bow {
 		}
 		
 		for (int i=0;i<status.length;i++){
+			// init hashmap for every input file
+			for(String word: top100Word) {
+				hm.put(word,"0"); 
+			}
+			
 			// create file to store result of each input txt
 			file_name = status[i].getPath().getName();
 			file_name = file_name.substring(0, file_name.lastIndexOf('.'));
@@ -140,7 +146,7 @@ public class Bow {
 			job.waitForCompletion(true);
 			
 			// get bag of words
-			bow[idx] = getBow(file_name, output_file);
+			bow[idx] = getBow(fs, file_name, output_file);
 			
 			System.out.println("Finished: "+file_name);
         }
@@ -153,5 +159,4 @@ public class Bow {
 		br.close();
 		bw.close();
 	}
-
 }

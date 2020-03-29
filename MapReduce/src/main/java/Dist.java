@@ -89,16 +89,24 @@ public class Dist {
 
     }
 	
-	private static String getWordCnt(String file_name, String file_path) {
+	private static String getWordCnt(FileSystem fs, String file_name, String file_path) {
 		try {
 			Map<String,Integer> _hm = new LinkedHashMap<String,Integer>();
-			br = new BufferedReader(new FileReader(file_path+"/part-r-00000"));
-	        String line = null;
-	        
-	        while ((line = br.readLine()) != null) {
-	        	String[] pair = line.split("	");
-	        	_hm.put(pair[0], Integer.parseInt(pair[1]));
-	        }
+			
+			FileStatus[] status = fs.listStatus(new Path(file_path));
+			
+			// read all file
+			for (int i=0;i<status.length;i++){	
+				br = new BufferedReader(new FileReader(file_path+"/"+"/"+status[i].getPath().getName()));
+		        String line = null;
+		        
+		        while ((line = br.readLine()) != null) {
+		        	String[] pair = line.split("	");
+		        	_hm.put(pair[0], Integer.parseInt(pair[1]));
+		        }
+		        
+		        br.close();
+			}
 	        
 	        _hm = sortByValue(_hm);
 
@@ -176,7 +184,7 @@ public class Dist {
 			job.waitForCompletion(true);
 			
 			// get word count of each input file
-			bow[idx] = getWordCnt(file_name, output_file);
+			bow[idx] = getWordCnt(fs, file_name, output_file);
 			
 			System.out.println("Finished: "+file_name);
         }
@@ -185,6 +193,7 @@ public class Dist {
 		for(String line: bow) {
 			bw.write(line+'\n');
 		}
+		
 		bw.write(getTotalWordCnt());
 		br.close();
 		bw.close();

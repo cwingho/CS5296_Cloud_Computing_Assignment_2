@@ -1,8 +1,9 @@
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
-import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -76,7 +77,8 @@ public class Bow {
 			
 			// read all file
 			for (int i=0;i<status.length;i++){	
-				br = new BufferedReader(new FileReader(file_path+"/"+status[i].getPath().getName()));
+				
+				br = new BufferedReader(new InputStreamReader(fs.open(status[i].getPath())));
 		        String line = null;
 		        
 		        while ((line = br.readLine()) != null) {
@@ -100,7 +102,7 @@ public class Bow {
 	
 	public static void main(String[] args) throws IOException, ClassNotFoundException, InterruptedException{
 		if (args.length != 2) {
-			System.err.println("Usage: bow <in> <out>");
+			System.err.println("Argument: <in> <out>");
 			System.exit(0);
 		}
 		
@@ -151,12 +153,16 @@ public class Bow {
 			System.out.println("Finished: "+file_name);
         }
 
-		bw = new BufferedWriter(new FileWriter(output_dir+"output.txt"));
+		// create file on hdfs
+		OutputStream fsdos = fs.create(new Path(output_dir+"output.txt"),true);
+		
+		bw = new BufferedWriter(new OutputStreamWriter(fsdos));
 		for(String line: bow) {
 			bw.write(line+'\n');
 		}
 		
-		br.close();
 		bw.close();
+		fsdos.close();
+		fs.close();
 	}
 }

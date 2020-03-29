@@ -1,8 +1,9 @@
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
-import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
@@ -66,14 +67,6 @@ public class Dist {
 			}
 			result.set(sum);
 			context.write(key, result);
-			String word = key.toString();
-			
-			// add word count to hashmap
-			if(hm.containsKey(word)){
-				hm.put(word,hm.get(word)+sum);
-			}else {
-				hm.put(word,sum);
-			}	
 		}
 	}
 	
@@ -97,14 +90,22 @@ public class Dist {
 			
 			// read all file
 			for (int i=0;i<status.length;i++){	
-				br = new BufferedReader(new FileReader(file_path+"/"+"/"+status[i].getPath().getName()));
+				br = new BufferedReader(new InputStreamReader(fs.open(status[i].getPath())));
 		        String line = null;
 		        
 		        while ((line = br.readLine()) != null) {
 		        	String[] pair = line.split("	");
-		        	_hm.put(pair[0], Integer.parseInt(pair[1]));
+		        	String word = pair[0];
+		        	Integer sum = Integer.parseInt(pair[1]);
+		        	_hm.put(word, sum);
+		        	
+		        	// add word count to hashmap
+					if(hm.containsKey(word)){
+						hm.put(word,hm.get(word)+sum);
+					}else {
+						hm.put(word,sum);
+					}
 		        }
-		        
 		        br.close();
 			}
 	        
@@ -189,14 +190,20 @@ public class Dist {
 			System.out.println("Finished: "+file_name);
         }
 		
-		bw = new BufferedWriter(new FileWriter(output_dir+"output.txt"));
+		// create file on hdfs
+		OutputStream fsdos = fs.create(new Path(output_dir+"output.txt"),true);
+		
+		bw = new BufferedWriter(new OutputStreamWriter(fsdos));
 		for(String line: bow) {
 			bw.write(line+'\n');
 		}
 		
+		// write total count
 		bw.write(getTotalWordCnt());
-		br.close();
+		
 		bw.close();
+		fsdos.close();
+		fs.close();
 	}
 
 }

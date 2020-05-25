@@ -172,7 +172,7 @@ public class Dist {
 			output_file = output_dir+file_name;
 			
 			Job job = Job.getInstance(conf, "bow");
-		    job.setJarByClass(Dist.class);
+		    	job.setJarByClass(Dist.class);
 			job.setMapperClass(TokenizerMapper.class);
 			job.setReducerClass(IntSumReducer.class);
 			job.setNumReduceTasks(1);

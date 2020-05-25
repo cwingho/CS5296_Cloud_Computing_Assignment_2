@@ -171,7 +171,7 @@ public class Dist {
 			file_name = "file"+((i+1 != N_TEST_FILE)?"0":"")+String.valueOf(i+1);
 			output_file = output_dir+file_name;
 			
-			Job job = Job.getInstance(conf, "bow");
+			Job job = Job.getInstance(conf, "dist");
 		    	job.setJarByClass(Dist.class);
 			job.setMapperClass(TokenizerMapper.class);
 			job.setReducerClass(IntSumReducer.class);

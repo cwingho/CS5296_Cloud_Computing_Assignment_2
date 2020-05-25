@@ -142,7 +142,7 @@ public class Dist {
 	
 	public static void main(String[] args) throws IOException, ClassNotFoundException, InterruptedException{
 		if (args.length != 2) {
-			System.err.println("Usage: bow <in> <out>");
+			System.err.println("Usage: dist <in> <out>");
 			System.exit(0);
 		}
 		
@@ -172,7 +172,7 @@ public class Dist {
 			output_file = output_dir+file_name;
 			
 			Job job = Job.getInstance(conf, "bow");
-		    job.setJarByClass(Bow.class);
+		    job.setJarByClass(Dist.class);
 			job.setMapperClass(TokenizerMapper.class);
 			job.setReducerClass(IntSumReducer.class);
 			job.setNumReduceTasks(1);
